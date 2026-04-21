@@ -1,0 +1,54 @@
+# epigraph settings
+# Override any ${VAR:-default} value with the named environment variable.
+
+project:
+  name: methylation-knowledge-graph
+  genome_build: GRCh38
+
+paths:
+  beta_matrix: ${BETA_MATRIX_PATH:-data/raw/beta_matrix.csv}
+  clinical_metadata: ${CLINICAL_METADATA_PATH:-data/raw/clinical_metadata.xlsx}
+  data_dir: data
+  dev_subset_dir: data/dev
+  processed_dir: data/processed
+  external_dir: data/external
+
+typedb:
+  address: ${TYPEDB_ADDRESS:-localhost:1729}
+  database: ${TYPEDB_DATABASE:-methylation_graph}
+  batch_size: 1000              # entities per transaction
+  max_retries: 3
+
+dev_subset:
+  n_samples: 50
+  n_cpgs: 1000
+  random_seed: 42
+  # Ensure representation of all clinical categories
+  stratify_by: clinical_category
+
+processing:
+  chunk_size: 10000             # columns per chunk for CSV -> Parquet
+  min_variance: 0.01            # minimum CpG variance for TypeDB import
+  min_coverage: 0.5             # minimum fraction of non-missing samples
+  parquet_compression: zstd
+  parquet_row_group_size: 100   # rows per row group
+
+clinical:
+  worksheet_pattern: "CLIN_*"   # glob pattern for clinical worksheets
+  barcode_column: barcode       # column name in clinical sheets
+  category_column: clinical_category
+
+analysis:
+  alpha: 0.05                   # significance threshold
+  fdr_method: fdr_bh            # Benjamini-Hochberg
+  min_cpgs_per_gene: 3          # minimum CpGs to compute a gene-level feature
+  comparisons:
+    - name: CRC_vs_Control
+      group1: CRC
+      group2: Control
+    - name: CRC_vs_polyps
+      group1: CRC
+      group2: polyps
+    - name: polyps_vs_Control
+      group1: polyps
+      group2: Control

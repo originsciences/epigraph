@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+
+# Data files (too large for git)
+data/raw/
+data/external/*.gz
+data/external/*.txt
+data/external/*.obo
+data/external/*.parquet
+data/processed/
+data/interim/
+data/dev/*.parquet
+
+# Keep directory structure
+!data/raw/.gitkeep
+!data/external/.gitkeep
+!data/processed/.gitkeep
+!data/interim/.gitkeep
+!data/dev/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+
+# Caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

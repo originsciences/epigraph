@@ -1,0 +1,26 @@
+# Development subset configuration
+# Used for fast iteration on schema, ingestion, and analysis pipelines
+
+subset:
+  n_samples: 50
+  n_cpgs: 1000
+  random_seed: 42
+
+  # Stratified sampling: ensure all clinical categories are represented
+  stratify_by: clinical_category
+  min_per_category: 5
+
+  # CpG selection strategy:
+  #   - spread: sample uniformly across chromosomes
+  #   - random: pure random selection
+  #   - informative: select high-variance CpGs (requires pre-scan)
+  cpg_selection: spread
+
+  # Chromosomes to sample from (null = all)
+  chromosomes: null
+
+  # Output paths
+  output_beta: data/dev/beta_subset.parquet
+  output_clinical: data/dev/clinical_subset.parquet
+  output_cpg_list: data/dev/cpg_list.txt
+  output_sample_list: data/dev/sample_list.txt

@@ -1,0 +1,303 @@
+## Methylation Knowledge Graph — TypeDB 3.x Schema
+## Target: TypeDB 3.8+ / TypeQL 3.8+ syntax
+##
+## Conventions:
+##   - Attributes use @key for identity where appropriate
+##   - Cardinality constrained with @card where needed
+##   - @values used for controlled vocabularies
+##   - entity/relation/attribute keywords (not sub entity)
+##   - Functions replace rules (see functions.tql)
+##
+## Design decisions (informed by TypeDB review):
+##   - Population-level CpG stats (mean_beta on cpg) are distinct from
+##     per-sample derived features (aggregated_mean_beta on relations)
+##   - Derived features split by level: gene vs CpG (avoids ambiguous queries)
+##   - Differential signals split by level: gene vs pathway vs term
+##   - @card(1) on cohort roles to enforce exactly one reference + one comparison
+##   - @values on clinical_category and overlap_type for data integrity
+
+define
+
+# =============================================================================
+# ATTRIBUTE TYPES
+# =============================================================================
+
+# --- Identifiers ---
+attribute barcode, value string;
+attribute sample_id, value string;
+attribute cpg_id, value string;              # format: chr1_10469 (1-based)
+attribute gene_symbol, value string;
+attribute ensembl_gene_id, value string;     # ENSG00000000003
+attribute pathway_id, value string;          # R-HSA-12345 or hsa04010
+attribute term_id, value string;             # GO:0008150, K00001, R-HSA-12345
+attribute region_id, value string;           # UCSC CpG island ID or ENCODE cCRE ID
+attribute cohort_id, value string;
+
+# --- Genomic coordinates ---
+attribute chromosome, value string;          # chr1, chr2, ..., chrX, chrY, chrM
+attribute position, value integer;           # 1-based genomic coordinate
+attribute start_position, value integer;     # 1-based start
+attribute end_position, value integer;       # 1-based end
+attribute strand, value string @values("+", "-", ".");
+
+# --- Sample metadata ---
+attribute clinical_category, value string @values("CRC", "Control", "polyps", "HGD", "C+", "other_cancer", "excluded");
+attribute age, value integer;
+attribute sex, value string @values("M", "F", "unknown");
+
+# --- Gene metadata ---
+attribute biotype, value string;             # protein_coding, lncRNA, etc.
+attribute gene_name, value string;           # human-readable name / description
+
+# --- Pathway / function metadata ---
+attribute pathway_name, value string;
+attribute pathway_source, value string @values("Reactome", "KEGG", "MSigDB");
+attribute term_name, value string;
+attribute term_namespace, value string @values("biological_process", "molecular_function", "cellular_component");
+attribute evidence_code, value string;       # IEA, IDA, IMP, etc.
+attribute annotation_source, value string;   # GOA, UniProt, KEGG, etc.
+
+# --- Region metadata ---
+attribute region_type, value string @values("cpg_island", "promoter", "enhancer", "insulator", "cCRE");
+attribute region_name, value string;
+
+# --- Overlap metadata ---
+attribute overlap_type, value string @values("promoter", "gene_body", "exon", "intron", "utr5", "utr3", "intergenic");
+
+# --- CpG population-level stats (across all samples) ---
+# These are owned by cpg entities and represent population-level summaries
+attribute mean_beta, value double;           # mean beta across all samples
+attribute beta_variance, value double;       # variance across all samples
+attribute n_samples, value integer;          # number of samples with data
+attribute missingness_fraction, value double; # fraction of samples with no data
+
+# --- Derived per-sample aggregated features ---
+# These are owned by derived-feature relations and represent per-sample aggregations
+attribute aggregated_mean_beta, value double;    # mean beta of CpGs in a gene for one sample
+attribute aggregated_median_beta, value double;  # median beta of CpGs in a gene for one sample
+attribute n_cpgs, value integer;                 # number of CpGs contributing to the aggregation
+
+# --- Statistical results ---
+attribute effect_size, value double;         # Cohen's d or delta-beta
+attribute p_value, value double;
+attribute q_value, value double;             # FDR-adjusted
+attribute test_method, value string;         # t-test, Mann-Whitney, logistic regression
+attribute comparison_label, value string;    # CRC_vs_Control, CRC_vs_polyps
+
+# --- Provenance ---
+attribute annotation_version, value string;  # GENCODE v45, GO 2024-01-01
+attribute pipeline_version, value string;
+attribute created_date, value datetime;       # timestamp of creation
+attribute data_source, value string;         # file path or S3 URI
+
+# --- Cohort / study ---
+attribute study_name, value string;
+attribute cohort_name, value string;
+attribute cohort_description, value string;
+
+# --- Boolean flags ---
+attribute in_cpg_island, value boolean;
+attribute is_biomarker_candidate, value boolean;
+
+
+# =============================================================================
+# ENTITY TYPES
+# =============================================================================
+
+entity sample,
+    owns barcode @key,
+    owns sample_id,
+    owns clinical_category @card(1),
+    owns age @card(0..1),
+    owns sex @card(0..1),
+    plays sample-cohort-membership:member-sample,
+    plays gene-methylation-feature:measured-sample,
+    plays gene-differential-signal:context-sample;
+
+entity cpg,
+    owns cpg_id @key,
+    owns chromosome @card(1),
+    owns position @card(1),
+    owns in_cpg_island @card(0..1),
+    owns is_biomarker_candidate @card(0..1),
+    owns mean_beta @card(0..1),
+    owns beta_variance @card(0..1),
+    owns missingness_fraction @card(0..1),
+    owns n_samples @card(0..1),
+    plays cpg-gene-overlap:overlapping-cpg,
+    plays cpg-region-overlap:overlapping-cpg;
+
+entity gene,
+    owns ensembl_gene_id @key,
+    owns gene_symbol @unique,
+    owns gene_name @card(0..1),
+    owns chromosome @card(1),
+    owns start_position @card(1),
+    owns end_position @card(1),
+    owns strand @card(1),
+    owns biotype @card(0..1),
+    plays cpg-gene-overlap:overlapped-gene,
+    plays gene-pathway-membership:member-gene,
+    plays gene-function-annotation:annotated-gene,
+    plays gene-methylation-feature:measured-gene,
+    plays gene-differential-signal:tested-gene;
+
+entity pathway,
+    owns pathway_id @key,
+    owns pathway_name @card(1),
+    owns pathway_source @card(1),
+    plays gene-pathway-membership:containing-pathway,
+    plays pathway-differential-signal:tested-pathway;
+
+entity function-term,
+    owns term_id @key,
+    owns term_name @card(1),
+    owns term_namespace @card(0..1),
+    plays gene-function-annotation:annotating-term,
+    plays term-differential-signal:tested-term;
+
+entity genomic-region,
+    owns region_id @key,
+    owns region_name @card(0..1),
+    owns region_type @card(1),
+    owns chromosome @card(1),
+    owns start_position @card(1),
+    owns end_position @card(1),
+    plays cpg-region-overlap:overlapped-region;
+
+entity cohort,
+    owns cohort_id @key,
+    owns cohort_name @card(1),
+    owns cohort_description @card(0..1),
+    owns study_name @card(0..1),
+    plays sample-cohort-membership:containing-cohort,
+    plays gene-differential-signal:reference-cohort,
+    plays gene-differential-signal:comparison-cohort,
+    plays pathway-differential-signal:reference-cohort,
+    plays pathway-differential-signal:comparison-cohort,
+    plays term-differential-signal:reference-cohort,
+    plays term-differential-signal:comparison-cohort;
+
+entity provenance,
+    owns annotation_version,
+    owns pipeline_version,
+    owns created_date,
+    owns data_source;
+
+
+# =============================================================================
+# RELATION TYPES
+# =============================================================================
+
+# CpG overlaps a gene (with overlap context)
+relation cpg-gene-overlap,
+    relates overlapping-cpg @card(1),
+    relates overlapped-gene @card(1),
+    owns overlap_type @card(1);
+
+# Gene belongs to a pathway
+relation gene-pathway-membership,
+    relates member-gene @card(1),
+    relates containing-pathway @card(1),
+    owns annotation_source @card(0..1);
+
+# Gene annotated with a functional term (GO/KEGG/Reactome)
+relation gene-function-annotation,
+    relates annotated-gene @card(1),
+    relates annotating-term @card(1),
+    owns evidence_code @card(0..1),
+    owns annotation_source @card(0..1);
+
+# CpG overlaps a genomic region (CpG island, promoter, enhancer, etc.)
+relation cpg-region-overlap,
+    relates overlapping-cpg @card(1),
+    relates overlapped-region @card(1);
+
+# Sample belongs to a cohort
+relation sample-cohort-membership,
+    relates member-sample @card(1),
+    relates containing-cohort @card(1);
+
+# Gene-level derived methylation feature (per-sample gene aggregation)
+# Stores materialised analysis results: for each sample, the aggregated
+# methylation across all CpGs in a gene
+relation gene-methylation-feature,
+    relates measured-sample @card(1),
+    relates measured-gene @card(1),
+    owns aggregated_mean_beta @card(0..1),
+    owns aggregated_median_beta @card(0..1),
+    owns n_cpgs @card(1);
+
+# Gene-level differential methylation signal between cohorts
+# Exactly one reference cohort vs one comparison cohort per result
+relation gene-differential-signal,
+    relates tested-gene @card(1),
+    relates reference-cohort @card(1),
+    relates comparison-cohort @card(1),
+    relates context-sample,
+    owns effect_size @card(1),
+    owns p_value @card(1),
+    owns q_value @card(0..1),
+    owns test_method @card(1),
+    owns comparison_label @card(1),
+    owns n_cpgs @card(0..1);
+
+# Pathway-level differential signal
+relation pathway-differential-signal,
+    relates tested-pathway @card(1),
+    relates reference-cohort @card(1),
+    relates comparison-cohort @card(1),
+    owns effect_size @card(1),
+    owns p_value @card(1),
+    owns q_value @card(0..1),
+    owns test_method @card(1),
+    owns comparison_label @card(1),
+    owns n_cpgs @card(0..1);
+
+# Function-term-level differential signal (GO/KEGG/Reactome enrichment)
+relation term-differential-signal,
+    relates tested-term @card(1),
+    relates reference-cohort @card(1),
+    relates comparison-cohort @card(1),
+    owns effect_size @card(1),
+    owns p_value @card(1),
+    owns q_value @card(0..1),
+    owns test_method @card(1),
+    owns comparison_label @card(1),
+    owns n_cpgs @card(0..1);
+
+
+# =============================================================================
+# SCHEMA EXTENSION NOTES
+# =============================================================================
+#
+# Future extensions:
+#
+# 1. Regulatory region subtypes:
+#    entity promoter, sub genomic-region;
+#    entity enhancer, sub genomic-region;
+#    entity cpg-island, sub genomic-region;
+#    entity encode-ccre, sub genomic-region;
+#
+# 2. Transcript-level entities:
+#    entity transcript,
+#        owns ensembl_transcript_id @key,
+#        owns biotype,
+#        plays transcript-gene-link:child-transcript;
+#
+# 3. Sample-level QC:
+#    attribute total_reads, value integer;
+#    attribute mapping_rate, value double;
+#    attribute bisulfite_conversion_rate, value double;
+#
+# 4. Cross-omic links (if integrating with mutation/metagenomics):
+#    relation multi-omic-observation,
+#        relates methylation-feature,
+#        relates mutation-feature,
+#        relates microbiome-feature;
+#
+# 5. CpG-level per-sample features (if selective CpG-sample storage is needed):
+#    relation cpg-methylation-feature,
+#        relates measured-sample @card(1),
+#        relates measured-cpg @card(1),
+#        owns aggregated_mean_beta @card(1);

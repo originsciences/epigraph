@@ -1,0 +1,57 @@
+# Annotation sources for GRCh38
+# All URLs point to stable, versioned releases
+
+gencode:
+  version: "45"
+  gtf_url: "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_45/gencode.v45.annotation.gtf.gz"
+  description: "GENCODE v45 comprehensive gene annotation for GRCh38"
+  local_path: "data/external/gencode.v45.annotation.gtf.gz"
+
+mane:
+  version: "1.3"
+  gff_url: "https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.3/MANE.GRCh38.v1.3.ensembl_genomic.gff.gz"
+  description: "MANE Select v1.3 — consensus clinical-grade transcripts"
+  local_path: "data/external/MANE.GRCh38.v1.3.gff.gz"
+
+go:
+  ontology_url: "http://purl.obolibrary.org/obo/go/go-basic.obo"
+  annotation_url: "https://ftp.ebi.ac.uk/pub/databases/GO/goa/HUMAN/goa_human.gaf.gz"
+  description: "Gene Ontology + GOA human annotations"
+  local_path_obo: "data/external/go-basic.obo"
+  local_path_gaf: "data/external/goa_human.gaf.gz"
+
+reactome:
+  version: "89"
+  pathway_url: "https://reactome.org/download/current/ReactomePathways.txt"
+  gene_pathway_url: "https://reactome.org/download/current/Ensembl2Reactome.txt"
+  description: "Reactome pathway database"
+  local_path_pathways: "data/external/ReactomePathways.txt"
+  local_path_gene_map: "data/external/Ensembl2Reactome.txt"
+
+kegg:
+  # KEGG has licence restrictions; use MSigDB C2:CP:KEGG as proxy
+  # or download via KEGG REST API if licensed
+  use_msigdb_proxy: true
+  description: "KEGG pathways via MSigDB C2:CP:KEGG gene sets"
+
+msigdb:
+  version: "2024.1"
+  # Requires registration; download manually or use msigdbr R package
+  hallmark_url: "manual_download"
+  c2_cp_url: "manual_download"
+  c5_go_url: "manual_download"
+  description: "MSigDB gene sets (Hallmark, C2:CP, C5:GO)"
+  local_path: "data/external/msigdb/"
+
+cpg_islands:
+  source: "UCSC"
+  table: "cpgIslandExt"
+  url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/cpgIslandExt.txt.gz"
+  description: "UCSC CpG island annotations for hg38"
+  local_path: "data/external/cpgIslandExt.txt.gz"
+
+encode_ccres:
+  version: "v4"
+  url: "https://downloads.wenglab.org/V3/GRCh38-cCREs.bed"
+  description: "ENCODE candidate cis-regulatory elements v4 for GRCh38"
+  local_path: "data/external/GRCh38-cCREs.bed"

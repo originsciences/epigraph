@@ -1,0 +1,90 @@
+## Methylation Knowledge Graph — TypeDB 3.8+ Functions
+## Functions replace rules from TypeDB 2.x.
+## Uses anonymous relation syntax where relation variable is not needed.
+## All queries end with semicolons.
+
+define
+
+# Find all genes in a given pathway
+fun genes_in_pathway($pw: pathway) -> { gene }:
+    match
+        gene-pathway-membership (member-gene: $g, containing-pathway: $pw);
+    return { $g };
+
+# Find all CpGs overlapping a given gene
+fun cpgs_for_gene($g: gene) -> { cpg }:
+    match
+        cpg-gene-overlap (overlapping-cpg: $c, overlapped-gene: $g);
+    return { $c };
+
+# Find all CpGs in a pathway (transitive: pathway -> genes -> CpGs)
+fun cpgs_in_pathway($pw: pathway) -> { cpg }:
+    match
+        let $g in genes_in_pathway($pw);
+        let $c in cpgs_for_gene($g);
+    return { $c };
+
+# Find all pathways containing a specific gene
+fun pathways_for_gene($g: gene) -> { pathway }:
+    match
+        gene-pathway-membership (member-gene: $g, containing-pathway: $pw);
+    return { $pw };
+
+# Find GO terms for a gene
+fun go_terms_for_gene($g: gene) -> { function-term }:
+    match
+        gene-function-annotation (annotated-gene: $g, annotating-term: $t);
+    return { $t };
+
+# Find genes annotated with a specific GO/function term
+fun genes_with_term($t: function-term) -> { gene }:
+    match
+        gene-function-annotation (annotated-gene: $g, annotating-term: $t);
+    return { $g };
+
+# Find all samples in a clinical category
+fun samples_in_category($cat: string) -> { sample }:
+    match
+        $s isa sample, has clinical_category == $cat;
+    return { $s };
+
+# Find CpGs in a genomic region type (e.g., all CpGs in CpG islands)
+fun cpgs_in_region_type($rtype: string) -> { cpg }:
+    match
+        $r isa genomic-region, has region_type == $rtype;
+        cpg-region-overlap (overlapping-cpg: $c, overlapped-region: $r);
+    return { $c };
+
+# Find genes with significant differential methylation for a comparison
+fun significant_genes($comparison: string, $threshold: double) -> { gene, double }:
+    match
+        $ds isa gene-differential-signal,
+            links (tested-gene: $g),
+            has comparison_label == $comparison,
+            has q_value $q;
+        $q <= $threshold;
+    return { $g, $q };
+
+# Find pathways with significant differential methylation
+fun significant_pathways($comparison: string, $threshold: double) -> { pathway, double }:
+    match
+        $ds isa pathway-differential-signal,
+            links (tested-pathway: $pw),
+            has comparison_label == $comparison,
+            has q_value $q;
+        $q <= $threshold;
+    return { $pw, $q };
+
+# Find biomarker candidate CpGs
+fun biomarker_cpgs() -> { cpg }:
+    match
+        $c isa cpg, has is_biomarker_candidate true;
+    return { $c };
+
+# Find gene-level aggregated methylation for a sample
+fun gene_methylation_for_sample($s: sample) -> { gene, double }:
+    match
+        $f isa gene-methylation-feature,
+            links (measured-sample: $s, measured-gene: $g),
+            has aggregated_mean_beta $beta;
+    return { $g, $beta };
